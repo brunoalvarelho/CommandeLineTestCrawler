@@ -1,0 +1,170 @@
+<html lang="en">
+  <head>
+    <meta name="google-signin-scope" content="profile email">
+    <meta name="google-signin-client_id" content="33527527336-tb8s9fg255m8asd3n9hhjj3ml7071s04.apps.googleusercontent.com">
+    <script src="https://apis.google.com/js/platform.js" async defer></script>
+    <script
+        src="https://code.jquery.com/jquery-3.3.1.js"
+        integrity="sha256-2Kok7MbOyxpgUVvAk/HJ2jigOSYS2auK4Pfzbm7uH60="
+        crossorigin="anonymous"></script>
+         <!-- Compiled and minified CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-rc.2/css/materialize.min.css">
+
+    <!-- Compiled and minified JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-rc.2/js/materialize.min.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">	
+  </head>
+  <body>
+    <nav class="light-blue lighten-1" role="navigation">
+    <div class="nav-wrapper container">
+      <a id="logo-container" href="#" class="brand-logo">Commande Line Test crawler</a>
+      <div class="right" style="padding-top: 13px;">
+          <button class="btn waves-effect waves-light grey" id="run" name="action">RUN</button>        
+      </div>
+    </div>
+  </nav>
+    <main class="section no-pad-bot">
+      <div class="progress" style="display: none;background-color: #f1b7d4;">
+         <div class="indeterminate" style="background-color: #ff0000;"></div>
+      </div>
+      <div class="container" id="result">
+        <p class="col s6" style="display: inline-block;color: #8bc34a">Pass test: <span id="nbPassTest">0</span></p>
+        <p class="col s6" style="display: inline-block;color: red;">Failed test: <span id="nbFailedTest">0</span></p>
+      </div>
+      <div class="container">
+        <form>
+          <div class="row">
+            <div class="input-field col s12">
+              <textarea style="height: 100px"  id="textarea1"></textarea>
+              <label for="textarea1" class='active'>Command line to execute</label>
+            </div>
+          </div>
+          <button class="btn waves-effect waves-light" type="submit" id="submit" name="action">SAVE</button>        
+          </form>
+      </div>
+      <div class="container" id="failedTest">
+      	
+      </div>
+      <div class="container" id="resultTest">
+
+      </div>
+    </main>
+    <script>
+      let commandLineToExcute = [];
+
+      function getCommandeLine() {
+        $.ajax({
+          url: 'get_commande_line.php',
+          type: 'get',
+           success: function(data)
+           {
+                commandLineToExcute = $.parseJSON(data);
+                $('textarea').val(commandLineToExcute.join('\n')); // show response from the php script.
+           }
+        })
+      }
+
+      function registerTextArea() {
+        $('#submit').on('click', function(e) {
+            e.preventDefault();
+            let array = $('textarea').val().split('\n');
+            $.ajax({
+              url: 'set_commande_line.php',
+              type: 'post',
+              data: {
+                data: array
+              }
+            })
+        });
+      }
+
+
+      /** exec the command line on click to run event */
+      function executeAllCommandLine()
+      {
+          $('#run').on('click', function()
+          {
+            for (let i = commandLineToExcute.length - 1; i >= 0; i--) {
+              loader(true);
+                let bool = true;
+              if (i === 0){
+                  bool = false;
+              }
+              cmdLineExecAjax(commandLineToExcute[i], bool);
+            }
+          });
+      }
+
+      /** Ajax that send the command line ot php */
+      function cmdLineExecAjax(commandLine, bool)
+      {
+          $.ajax({
+            url: 'execute_commande_line.php',
+            type: 'post',
+            data: {
+              data: commandLine
+            }
+          }).done(function(data)
+          {
+              /** prepend the html */
+              modelResultTest(commandLine, $.parseJSON(data));
+              /** show or hide de loader */
+              loader(bool);
+          })
+      }
+
+      /** Ahide or show the loader */
+      function loader(status){
+          if (status) {
+              $('.progress').show()
+          } else {
+              $('.progress').hide()
+          }
+      }
+
+      /** remove special caractere from a string */
+      function convertString(string) {
+          return string.replace(/\(\[(..)/gm,'').replace(/\[(...)/gm,'')
+      }
+
+      /** html render */
+      function modelResultTest(commandLine, data)
+      {
+          let status = 'light-green';
+          let lineFailed = '';
+          let icon = 'check';
+          let place = 'resultTest';
+          if (data[data.length - 3].includes('failed') || !data[data.length - 3].includes('scenario')) {
+              place = 'failedTest';
+              status = 'red darken-2';
+              icon = 'clear';
+              lineFailed = '<p style="color:#ff0000">Failed scenarios:</p><p style="color:#ff0000">'+convertString(data[data.length - 5])+'</p>';
+              $('#nbFailedTest').html(parseInt($('#nbFailedTest').html())+1);
+          }else{
+              $('#nbPassTest').html(parseInt($('#nbPassTest').html())+1);
+          }
+
+          $('#'+place).prepend
+          ('<div class="row">'+
+              '<div class="col s12">'+
+                '<div class="card">'+
+                  '<div class="card-content">'+
+                    '<span class="card-title">'+commandLine.replace('sudo docker-compose exec api vendor/bin/behat --suite ','')+'</span>'+
+                    '<i class="'+status+' material-icons right" style="color: white;">'+icon+'</i>'+
+                    '<p>'+convertString(data[data.length - 1])+'</p>'+
+                    '<p>'+convertString(data[data.length - 2])+'</p>'+
+                    '<p>'+convertString(data[data.length - 3])+'</p>'+
+                    +'<p>'+lineFailed+'</p>'+
+                  '</div>'+
+                '</div>'+
+              '</div>'+
+            '</div>');
+      }
+
+      getCommandeLine();
+      registerTextArea();
+      executeAllCommandLine();
+
+    </script>
+  </body>
+</html>
